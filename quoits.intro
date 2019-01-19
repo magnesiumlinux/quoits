@@ -15,25 +15,25 @@ Networking
 
 For wired networks running a DHCP server, running
 
- > net up eth0
+ \> net up eth0
 
 will connect to the network.  On wireless networks, you can 
 give the AP and PSK by hand:
 
- > net wifi wlan0 "HomeNetwork" "SecritPa$$wurd"
- > net up wlan0
+ \> net wifi wlan0 "HomeNetwork" "SecritPa$$wurd"
+ \> net up wlan0
 
 or use the interactive chooser:
 
- > net wifi wlan0 up
+ \> net wifi wlan0 up
 
 you can see the available interfaces with:
 
- > net ls
+ \> net ls
 
 and check their status with:
 
- > net stat eth0
+ \> net stat eth0
 
 
 Timezone
@@ -42,11 +42,11 @@ Timezone
 QUOITS boots up using UTC time by default.  Use the interactive 
 timezone chooser to change the timezone:
 
- > tz 
+ \> tz 
 
 or if you know your timezone string:
 
- > tz US/Pacific
+ \> tz US/Pacific
 
 
 User Accounts
@@ -57,27 +57,27 @@ until you create them, and they go away when the system restarts.  Also,
 user files are only stored in memory unless explicitly saved.  To create
 a user account named bob:
 
- > user up bob
+ \> user up bob
 
 to open a new shell as the user bob:
 
- > user shell bob
+ \> user shell bob
 
 This will switch the console to a virtual terminal running the shell. 
 After working in bob's account for a while, get back to QUOITS by 
 typing ALT+F1, and save bob's home directory in a pod named 'bobfiles':
 
- > user save bob bobfiles
+ \> user save bob bobfiles
 
 to destroy bob's account:
 
- > user down bob
+ \> user down bob
 
 You can re-create the 'bob' account and files with:
 
- > user up bob
- > user load bob bobfiles
- > user shell bob
+ \> user up bob
+ \> user load bob bobfiles
+ \> user shell bob
 
 
 Bigboard
@@ -86,11 +86,11 @@ Bigboard
 Bigboard shows many useful statistics about the running system all on
 a single page.  To open bigboard:
 
- > bigboard
+ \> bigboard
 
 or just:
  
- > bb
+ \> bb
 
 Type 'q' to exit bigboard and get back to the QUOITS shell
 
@@ -104,8 +104,8 @@ These are available on VT9 by default.  This is insecure in a multi-
 user environment and should be shut down before sharing the computer
 run:
 
- # sv x l0gin
- # clear; exit
+  \# sv x l0gin
+  \# clear; exit
 
 from the builder console to shutdown the builder console
 
