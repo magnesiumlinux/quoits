@@ -1,0 +1,180 @@
+#!/bin/sh
+
+set -e
+set -u
+#set -x
+
+HOMEROOT=${HOMEROOT:-/home}
+HOMESIZE=${HOMESIZE:-256}    	# in MiB
+
+PODROOT=/vault/pods
+POD_OVERHEAD=4/3		# fraction>1: multiplier for minimum size
+
+DEFAULT_SHELL=/bin/bash
+
+WORKDIR=""
+
+podpath() {
+    echo $PODROOT/$1.pod
+}
+
+usage() {
+    echo "usage: usertool ls" >&2
+    echo "     | usertool ( up | down | shell | stat ) USERNAME" >&2
+    echo "     | usertool resize USERNAME SIZE_MB" >&2
+    echo "     | usertool ( load | save ) USERNAME PODNAME" >&2
+    return 1
+}
+
+fail() {
+    echo "failed: $*" >&2
+    return 1
+}
+
+cleanup() {
+   test -n $WORKDIR && test -d $WORKDIR && cd / && rm -r $WORKDIR
+}
+
+trap cleanup EXIT INT QUIT
+
+
+# check args
+if [ $# -lt 1 ]; then
+    usage
+fi
+
+if [ $1 = "ls" -o $1 = "list" ]; then
+    ls $HOMEROOT
+    exit 0
+elif [ $# -lt 2 ]; then
+    usage
+fi
+
+me=$0
+cmd=$1
+shift
+
+user=$(echo $1 | sed 's/[^0-9a-zA-Z]//g')
+home=$HOMEROOT/$user
+test -n "$HOMEROOT" && test -n "$user" || fail "Invalid directory: $HOMEROOT/$user"
+shift
+
+WORKDIR=$(mktemp -d usertool.XXXXXX)
+cd $WORKDIR
+
+case $cmd in
+st|sta|stat)
+    grep -q "^$user:" /etc/passwd || return 1
+    test -d $home || return 1
+    test "$(stat -c '%U' $home)" == "$user" || return 1
+    echo $user
+    ;;
+
+u|up)
+    shell=${1:-$DEFAULT_SHELL}
+
+    # /etc/passwd entry
+    nextuser $user $shell > passwd.frag || fail nextuser
+    graft_passwd /etc/passwd passwd.frag > passwd.tmp || fail graft_password
+    mv passwd.tmp /etc/passwd
+    rm -f passwd.frag
+
+    # $home
+    mkdir $home
+    mount -t tmpfs -o nosuid,nodev,size=$(($HOMESIZE*1024*1024)) tmpfs $home
+
+    mkdir -p $home/log 
+    mkdir -p $home/environ
+    mkdir -p $home/service
+
+    chown -R ${user}: $home
+    chmod 700 $home 
+    ;;
+
+d|do|dow|down)
+    $me stat $user || fail "no such user: $user"
+    svtool down user-$user
+
+    while pids=$(ps w | awk "\$2==\"$user\" {print \$1}") && test -n "$pids" ; do
+        kill $pids || true 2>/dev/null
+        usleep 200
+    done
+
+    $me unload $user
+
+    umount $home
+    rmdir $home
+
+    grep -v -e "^$user:.*" /etc/passwd > passwd.tmp || fail "unaccount"
+    mv passwd.tmp /etc/passwd
+    ;;
+
+l|lo|loa|load)
+    $me stat $user || fail "no such user: $user"
+    test $# -lt 1  && usage
+    
+    # unpack the pod and load it into memory
+    tmpdir=$(pod $(podpath $1))
+    rsync -a $tmpdir/ $home/
+    pod -d $tmpdir
+
+    #update it with current user info
+    echo "$home/service" > $home/environ/SVDIR
+    echo "$user" > $home/environ/USER
+    echo "$user" > $home/environ/LOGNAME  
+    echo "$home" > $home/environ/HOME
+    mkdir -p $home/log 
+    mkdir -p $home/environ
+    mkdir -p $home/service
+    chown -R $user: $home
+    ;;
+
+sa|sav|save)
+    $me stat $user || fail "no such user: $user"
+    test $# -lt 1 && usage
+
+    # determine required pod size
+    homemin=$(df $home | tail -n +2 | awk '{print $3}')
+    homesz=8  # in kB
+    while [ $homesz -lt $(( $homemin * $POD_OVERHEAD )) ]; do
+  	let homesz=$homesz*2
+    done
+
+    tmpdir=$(pod -c -s $homesz $(podpath $1))
+    if [ -f $home/.podexclude ]; then
+        exclude="--exclude-from $home/.podexclude"
+    else
+        exclude=""
+    fi
+
+    rsync -a --delete $exclude $home/ $tmpdir/
+    pod -d $tmpdir
+    ;;
+
+un|unl|unlo|unloa|unload)
+    $me stat $user || fail "No such user '$user'"
+    rm -rf $home/*
+    dd if=/dev/zero of=$home/burn >/dev/null 2>&1 || true
+    rm $home/burn
+    ;;
+
+sh|she|shel|shell)
+    $me stat $user || fail "No such user '$user'"
+
+    svtool skel user $user
+
+    openvt -s chpst -P -e $home/environ login -f $user -p &
+    ;;
+
+r|re|res|resi|resiz|resize)
+    $me stat $user || fail "No such user: '$user'"
+    test $# -lt 1 && usage
+    echo $1 | grep -q '^[0-9]*$' || fail "invalid size: $2"
+    mount -oremount,size=$3M $home
+    ;;
+
+    
+*)
+    usage
+    ;;
+esac

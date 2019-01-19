@@ -1,0 +1,131 @@
+#!/bin/sh
+# optmount
+# manage mounting and environment 
+# for filesystems mounted under /opt
+# supports: filesystem versioning,
+#   mounting into memory 
+
+set -e
+set -u
+#set -x
+
+FSHOME=/vault/magnesium
+TMPROOT=/tmp/fs
+
+usage () {
+    echo "Usage: optmount ls"
+    echo "              | stat FS"
+    echo "              | up FS [mem]"
+    echo "              | down FS"
+    return 1
+}
+
+error () {
+    echo $* >&2
+    return 1
+}
+
+list () {
+    for fs in $(ls $FSHOME/*.squashfs); do
+        basename $fs .squashfs
+    done   
+}
+ 
+# echo the status of the given optmount
+# return 0 if already mounted
+# return 1 otherwise
+stat() {
+    local loop=$(losetup -a | grep "/$1.squashfs)\$" || true) 
+    if [ -n "$loop" ] ; then
+        local lodev=$(echo $loop | sed 's/\([^:]*\):.*/\1/')
+        local mtpt=$(mount | grep "$lodev" | awk '{print $3}')
+        local ismem
+        if echo $loop | sed 's/[^(]*(\([^)]*\))$/\1/' | grep -q '^/tmp/fs'; then
+            ismem="mem"
+        else
+            ismem=""
+        fi
+        echo "$1 on $mtpt $ismem"
+        return 0
+    else
+        echo "$1"
+        return 1
+    fi
+}
+
+
+## end function defs
+
+
+if [ $# -lt 1 ]; then
+    usage
+fi
+ 
+if [ $1 == "ls" ]; then
+    for fs in $(list); do
+        stat $fs || true
+    done
+    exit 0
+fi
+
+if [ $# -lt 2 ]; then
+    usage
+fi
+
+fs=$(list | grep $2 | sort -r | head -n 1)     # most recent match
+test -z "$fs" && error "No filesystem matches '$2'"
+
+mtpt="/opt/$(echo $fs | awk -F'-' '{print $1}')"
+
+
+case $1 in
+d|do|dow|down)
+    stat $fs > /dev/null || exit 0
+    umount $mtpt
+    if [ ${3:-''} == "mem" ] && stat $fs | grep -q ' mem$'; then
+       rm -f $TMPROOT/$fs.squashfs
+    fi
+    ;;
+
+    # XXX remove /etc/runit links
+    # XXX remove from $mtpt/ld-musl-$ARCH.path
+    # XXX remove /etc links
+
+s|st|sta|stat)
+    stat $fs
+    ;;
+
+u|up)
+    test -d $mtpt || mkdir $mtpt
+    stat $fs > /dev/null && exit 0
+
+    if [ "${3:-''}" == "mem" ]; then
+        mkdir -p $TMPROOT; chown -R root: $TMPROOT; chown 700 $TMPROOT
+        if [ ! -e $TMPROOT/$fs.squashfs -o $FSHOME/$fs.squashfs -nt $TMPROOT/$fs.squashfs ]; then
+            cp -a $FSHOME/$fs.squashfs $TMPROOT
+        fi
+        fspath=/tmp/fs
+    else
+        fspath=$FSHOME
+    fi
+    mount $fspath/$fs.squashfs $mtpt
+
+    # add links to our services to the /etc/runit directory
+    for d in $mtpt/runit/* ; do
+        test -d $d || continue
+        ln -s $d /etc/runit
+    done
+    ;;
+
+    # XXX add $mtpt/lib to ld-musl-$ARCH.path
+
+    # XXX link $mtpt/etc into /etc (move in from magnesium)
+
+
+*)
+    usage
+    ;;
+esac
+   
+
+                

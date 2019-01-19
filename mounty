@@ -1,0 +1,114 @@
+#!/bin/sh
+# mounty
+# mount and unmount file-backed filesystems
+# create new filesystems
+# deal with encryption
+# 
+
+set -e
+set -u
+#set -x
+
+MYROOT=/tmp/mounty
+
+MYMAGIC="mY"
+MYVERSION="00"
+
+
+fstype=ext2
+offset=0
+sizemb=256
+
+fail() {
+  echo $* >&2
+  exit 1
+}
+
+bytevals(){
+  awk '
+  BEGIN {
+    for(i=0;i<256;i++){
+      ord[sprintf("%c", i)] = i;
+    }
+  }
+  { 
+    len=split($0,chars,"");
+    for(i=1;i<=len;i++){
+      print i, ord[chars[i]];
+
+    }
+  }'
+}
+
+my_read_header(){
+  # read a mounty file header from stdin
+  # eight-byte fixed length header:
+  #  0-1 magic number, ASCII: "mY"
+  #  2-3 mounty version, ASCII: "00"
+  #  4-7 length of metadata section, in bytes
+  # metadata in key-value pairs
+  # filesystem data
+
+  # validate the file and get the full header length
+  local preheader=$(dd if=$file bs=6 count=1)
+  local magic=$(echo $preheader | cut -b 1-2)
+  local version=$(echo $preheader | cut b 3-4)
+
+  offset=$(echo $preheader | cut -b 5-6)
+
+  if [ $magic != $MYMAGIC ]; then
+    fail "$1 doesn't seem to be a mounty file"
+  fi  
+
+  case "$version" in 
+  "$MYVERSION")
+     local header=$(dd if=$file bs=$offset count=1)
+     
+     fstype=$(echo $header | cut -b 7-16)
+
+     ;;
+  *)
+    fail "Unknown mounty version: " $version
+    ;; 
+  esac
+
+  #
+
+}
+
+my_write_header(){
+    
+}
+
+my_temp_mount(){
+    local mp=$(tempname $MNTROOT)
+    mkdir $mp
+
+    mount -t tmpfs $mp $mp
+
+    echo $mp
+}
+
+my_file_create(){
+    local file=$1
+    dd if=/dev/zero of=$file bs=1024 count=$((sizemb*1024))
+    my_write_header $file
+    mkfs.$fstype # offset, options
+}
+
+my_file_mount(){
+    local file=$1
+
+    local mp=$(tempname $MNTROOT)
+    mkdir $mp
+
+    my_read_header
+    mount -o loop $file $mp # with what options?
+
+    echo $mp
+}
+
+my_umount() {
+    umount $1
+}
+

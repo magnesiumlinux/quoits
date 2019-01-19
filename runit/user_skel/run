@@ -1,0 +1,9 @@
+#!/bin/sh
+#set -x
+exec 2>&1
+
+user=$(basename $(pwd) | sed 's/user-//')
+home=/home/$user
+cd $home  # user doesn't have access to /service, runsvdir will fail
+
+exec chpst -e $home/environ -u $user runsvdir $home/service  ........................................................................

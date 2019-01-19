@@ -1,0 +1,9 @@
+#!/bin/sh
+PATH=$PATH:/opt/python/bin:/opt/net/bin
+PYTHONPATH=/usr/lib/python
+CACHE=/var/cache
+
+export PATH PYTHONPATH CACHE
+
+exec 2>&1
+exec getty -nl quoits.sh 38400 tty1

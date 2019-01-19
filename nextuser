@@ -1,0 +1,33 @@
+#!/bin/awk -f
+# nextuser
+# create the passwd line for the given username
+# with the next available user id
+# and the '1000' generic user group
+# if a second argument is given, use
+#  that instead of '/bin/sh' as the user's shell
+#
+# DOES NO VERIFICATION
+# for use in conjunction with graft_password or your brain 
+
+BEGIN{
+    FS = ":";
+    ID= 1001;
+    UNAME = ARGV[1];
+    delete ARGV[1];
+    if ( ARGV[2] != "" ) {
+        SHELL=ARGV[2];
+        delete ARGV[2]
+    } else {
+        SHELL="/bin/sh";
+    }
+   ARGV[1]="/etc/passwd";
+}
+ 
+{
+    if ($3+1>ID) {
+        ID=$3+1};
+} 
+
+END {
+    printf("%s:x:%d:1000::/home/%s:%s\n", UNAME, ID, UNAME, SHELL);
+}

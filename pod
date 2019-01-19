@@ -1,0 +1,169 @@
+#!/bin/sh
+# create a temporary mount point and mount the pod given in $2
+# possibly create a new pod, possibly encrypt it
+# echo the path to the mount point
+
+# this code writes new filesystem keys to $MNTROOT temporarily
+# this is UNSAFE if MNTROOT is backed by persistent storage
+
+# XXX autodetect encrypted pods -- will start with spor header
+# XXX prepend a fixed header to the encrypted keys to detect crypto failure
+
+
+MNTROOT=/tmp/pods
+PODSIZE=$((256 * 1024))  # default, in kB
+
+CIPHER=AES256                    # encryption algorithm to use
+KEYSIZE=128                      # length of each key in bytes
+KEYCOUNT=65                      # number of keys: loop-AES requires 65!
+SPOR_HEADSIZE=56                 # length of spor header (56 for 'e' mode)
+
+
+# size of text-encoded keys; 4/3 is the base64 overhead
+ENCKEYSIZE=$(($KEYSIZE*4/3))
+
+# size of header/bytes for loop-AES to skip, +1 for newlines
+OFFSET=$((($ENCKEYSIZE+1) * $KEYCOUNT + $SPOR_HEADSIZE))
+
+
+set -e
+set -u
+#set -x
+
+umask 0077
+
+
+usage () {
+    echo "Usage: $(basename $0) [ -cCes ] PODNAME"
+    echo "       $(basename $0) -d MTPT"
+    echo "         -c create pod if non-existent"
+    echo "         -C always create new pod"
+    echo "         -e enable pod encryption"
+    echo "         -s SIZEMB set pod size"
+    return 1
+}
+
+lodev_from_mount () {
+    mount | awk "\$3==\"$1\" {print \$1}"
+}
+
+mount_from_lodev () {
+    mount | awk "\$1==\"$1\" {print \$3}"
+}
+
+get_key(){
+    # loop-AES keys are 65 lines of newline-separated text
+    # symmetrically encrypted with spor
+    # and stored in the first $OFFSET bytes of the loopback file
+    
+    local pod=$1
+    local create=$2
+    
+    if $create; then
+        keyfile=$(mktemp $mtpt/key.XXXXXX)  
+   
+        # get a little bit too much data, encode, refold, and trim to size
+        dd if=/dev/urandom status=noxfer bs=$KEYSIZE count=$((KEYCOUNT+1)) \
+            | base64 | awk '{printf $0}' | fold -b -w $ENCKEYSIZE \
+            | head -n $KEYCOUNT  > $keyfile
+        cat $keyfile | spor PPe \
+            | dd status=noxfer conv=notrunc count=$OFFSET bs=1 of=$pod
+        cat $keyfile
+
+        #overwrite and delete
+        dd if=/dev/urandom of=$keyfile status=noxfer conv=notrunc \
+            count=$OFFSET bs=1
+        rm $keyfile
+    else
+        dd status=noxfer if=$pod bs=$OFFSET count=1 | spor Pd
+    fi
+}
+
+cleanup() {
+    if [ -n "$keyfile" -a -f "$keyfile" ]; then
+        rm -rf $keyfile
+    fi
+    if [ -n "$lodev" ] && losetup $lodev >/dev/null && [ -z $(mount_from_lodev $lodev) ]; then
+        # loop device is up but failed to mount. (bad password?)
+        losetup -d $lodev
+        rmdir $mtpt
+    fi  
+}
+
+trap cleanup EXIT INT QUIT
+
+
+test $# -ge 1 || usage
+
+create=false
+clobber=false
+encrypt=false
+testonly=false
+
+mtpt=""
+keyfile=""
+lodev=""
+
+while printf $1 | grep -q '^-'; do
+    case $1 in
+    "-c")
+    	create=true
+        ;;
+    "-C")
+        create=true
+        clobber=true
+        ;;
+    "-d")
+        test $# -lt 2 && usage
+        umount $2
+        rmdir $2 
+        exit 0
+        ;;
+    "-e")
+        encrypt=true
+        ;;
+    "-s")
+        test $# -lt 2 && usage
+        echo $2 | grep -q '^[0-9]*$' || fail "invalid size: $2"
+        podsize=$2
+        shift
+        ;;
+    *)
+        usage
+        ;;
+    esac
+    shift
+done
+
+pod=$1
+
+# create our mountpoint
+mkdir -p $MNTROOT
+mtpt=$(mktemp -d $MNTROOT/pod.XXXXXX)
+
+
+if [ -f $pod ] && ! $clobber; then
+    create=false
+fi
+
+if $create ; then
+    dd if=/dev/zero of=$pod bs=1024 count=$PODSIZE > /dev/null 2>&1
+fi
+
+# race!
+lodev=$(losetup -f)
+        
+if $encrypt; then
+    echo "Key size: $KEYSIZE, offset: $OFFSET"
+    get_key $pod $create | losetup -o $OFFSET -p 0 -e $CIPHER $lodev $pod 2>/dev/null
+else
+    losetup $lodev $pod
+fi
+
+
+if $create; then
+    mkfs.ext2 $lodev > /dev/null
+fi
+
+mount -o nodev,nosuid $lodev $mtpt
+echo "$mtpt"

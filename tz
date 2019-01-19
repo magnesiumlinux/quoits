@@ -1,0 +1,72 @@
+#!/bin/sh
+# tz
+# interactive timezone picker
+
+set -e
+set -u
+#set -x
+
+ZONEINFO=/usr/share/zoneinfo
+LOCALTIME=/etc/localtime
+
+tz_show () {
+    realpath $LOCALTIME 2>/dev/null | sed "s#$ZONEINFO/##"
+}
+
+tz_set () {
+    local zone=$1
+
+    if [ -z "$zone" ]; then
+        echo " tz> Time Zone Chooser"
+        echo " tz> type your closest location from the list, repeat"
+        echo " tz> 'q' to quit, '/' to start over"
+    fi
+
+    while [ ! -f $ZONEINFO/$zone ]; do
+        while [ ! -d $ZONEINFO/$zone ]; do
+            echo "$zone isn't a valid zone"
+            zone=$(dirname $zone)
+        done
+        
+        zone=$(echo $zone | sed 's#^/*##' | sed 's#/*$##')
+        ls $ZONEINFO/$zone
+
+        read -p "tz:$zone> "
+        case $REPLY in
+        q)
+            return 0
+            ;;
+        "/")
+            zone=""
+            ;;
+        *)
+            zone="$zone/$( echo $REPLY | sed 's#\.##g')"
+            ;;
+        esac
+    done
+
+    if [ -e "$LOCALTIME" ]; then
+        rm -f $LOCALTIME
+    fi
+    ln -s $ZONEINFO/$zone $LOCALTIME
+}
+
+
+# user can supply one opt and one zone in any order
+opt=""
+zone=""
+while [ $# -gt 0 ]; do
+    if echo $1 | grep -q '^-'; then
+        opt="$1"
+    else
+        zone=$1
+    fi
+    shift
+done
+
+if [ "$opt" = "--show" ]; then
+    tz_show
+else
+    tz_set "$zone"
+    test "$opt" = "--noecho" || tz_show
+fi

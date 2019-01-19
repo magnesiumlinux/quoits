@@ -1,0 +1,50 @@
+#!/bin/sh
+
+set -e
+set -u 
+#set -x
+
+SVDIR=/service
+SVSKEL=/etc/runit
+
+usage () {
+    echo "Usage: svtool ( up | down ) SERVICE" >&2
+    echo "     | svtool skel SERVICE TAG"      >&2
+    return 1
+}
+
+fail () {
+    echo $* >&2
+    return 1
+}
+
+test $# -ge 2 || usage
+svc=$2
+
+case $1 in
+d|do|dow|down)
+    while [ -d $SVDIR/$svc ]; do
+        test -d $SVDIR/$svc/log && sv x $SVDIR/$svc/log || true
+        sv x $SVDIR/$svc
+        usleep 100000 
+        rm -rf $SVDIR/$svc
+    done
+    ;;
+
+s|sk|ske|skel)
+    test $# -ge 3 || usage
+    skel=$3
+    test -e /service/$svc-$skel && exit 0
+    test -e $SVSKEL/${svc}_skel || fail "skeleton not found for: $svc"
+    cp -a $(realpath /etc/runit/${svc}_skel) /service/$svc-$skel
+    rm -f /service/$svc-$skel/down
+    ;;
+
+u|up)
+    test -d $SVDIR/$svc || cp -a $(realpath /etc/runit/$svc) /service
+    ;;
+*)
+    usage
+    ;;
+esac
+

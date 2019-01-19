@@ -1,0 +1,128 @@
+
+What is QUOITS?
+================
+
+QUOITS is the QUOITS Unix-Operated Interactive Teletype System.  It 
+is a (aspirationally) secure, text-based time-division-multiple-access 
+multiuser operating system.  It's built on top of magnesium linux and 
+the crater packaging system. 
+
+Getting Started
+===============
+
+Networking
+----------
+
+For wired networks running a DHCP server, running
+
+ > net up eth0
+
+will connect to the network.  On wireless networks, you can 
+give the AP and PSK by hand:
+
+ > net wifi wlan0 "HomeNetwork" "SecritPa$$wurd"
+ > net up wlan0
+
+or use the interactive chooser:
+
+ > net wifi wlan0 up
+
+you can see the available interfaces with:
+
+ > net ls
+
+and check their status with:
+
+ > net stat eth0
+
+
+Timezone
+--------
+
+QUOITS boots up using UTC time by default.  Use the interactive 
+timezone chooser to change the timezone:
+
+ > tz 
+
+or if you know your timezone string:
+
+ > tz US/Pacific
+
+
+User Accounts
+-------------
+
+All user accounts in QUOITS are ephemeral.  That is, they don't exist
+until you create them, and they go away when the system restarts.  Also, 
+user files are only stored in memory unless explicitly saved.  To create
+a user account named bob:
+
+ > user up bob
+
+to open a new shell as the user bob:
+
+ > user shell bob
+
+This will switch the console to a virtual terminal running the shell. 
+After working in bob's account for a while, get back to QUOITS by 
+typing ALT+F1, and save bob's home directory in a pod named 'bobfiles':
+
+ > user save bob bobfiles
+
+to destroy bob's account:
+
+ > user down bob
+
+You can re-create the 'bob' account and files with:
+
+ > user up bob
+ > user load bob bobfiles
+ > user shell bob
+
+
+Bigboard
+========
+
+Bigboard shows many useful statistics about the running system all on
+a single page.  To open bigboard:
+
+ > bigboard
+
+or just:
+ 
+ > bb
+
+Type 'q' to exit bigboard and get back to the QUOITS shell
+
+
+Builder
+=======
+
+If you want to modify QUOITS or the magnesium environment that it runs
+on top of, you'll want access to the builder console (root access).  
+These are available on VT9 by default.  This is insecure in a multi-
+user environment and should be shut down before sharing the computer
+run:
+
+ # sv x l0gin
+ # clear; exit
+
+from the builder console to shutdown the builder console
+
+
+Not Working Yet (aka TODO)
+==========================
+
+Saved user directories (pods) are still unencrypted.  This makes QUOITS 
+unsuitable for sharing with untrusted people, as they can just go 
+around the built-in protections (because you left the l0gin service 
+running, or just by accessing the backing file store offline) and mess
+with/view your files.  Support for loopback-encrypted pods is supported
+through the kernel and loop-AES, and we have symmetric and PK file 
+encryption available with the 'spor' tool: the glue code just hasn't 
+been written yet.
+
+File backup is still not automated and relies on access to the l0gin 
+service
+
+

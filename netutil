@@ -1,0 +1,191 @@
+#!/bin/sh
+##
+## tools that inspect network interfaces,
+## using /sys/class/net, ifconfig,
+## and known services in /services
+## 
+## examples:
+##
+# $ net ls
+# eth0   lo   wlan0
+#
+# $ net stat eth0
+# down
+# type ethernet
+#
+# $ net stat lo
+# up
+# type local
+# ip 127.0.0.1
+#
+# $ net stat wlan0
+# up dhcp
+# type wireless ethernet
+# ip 192.168.0.3
+# name "home"
+#
+# $ net up eth0 auto
+#
+# $ net stat eth0
+# up dhcp
+# type ethernet
+# ip 192.168.1.17
+#
+# $ net wifi wlan0 "coffeeshop" "123abc"
+# $ net wifi wlan0 "coffeeshop" 
+# Password: 
+# $ net stat wlan0
+# up dhcp
+# type wireless ethernet
+# ip 10.0.0.48
+# name "coffeeshop"
+#
+# $ net up eth0 192.168.1.53
+#
+# $ net stat eth0
+# up
+# type ethernet
+# ip 192.168.1.53
+#
+
+set -e
+set -u
+#set -x
+
+usage () {
+    echo \
+'Usage: net ( ls 
+           | stat DEVICE
+           | up DEVICE ( IP | "auto" )
+           | down DEVICE
+           | wifi DEVICE AP [ PSK ] )'
+    return 1
+}
+
+
+if_up () {
+    # is $1 up
+    grep -q up /sys/class/net/$iface/operstate
+}
+if_wireless () {
+    # does $1 have wireless extensions
+    test -d /sys/class/net/$1/wireless && return 0
+    return 1
+}
+
+if_ip () {
+    # what is $1's IP address
+    ifconfig $1 | grep "inet addr" | sed 's/.*inet addr:\([0-9\.]*\) .*/\1/'
+}
+
+
+if_dhcp () {
+    # is $1 using dhcp
+    ls -d /service/udhcpc-$1/ > /dev/null
+}
+
+if_ssid () {
+    # what SSID is $1 connected to
+    wpa_cli -i $iface status 2>/dev/null | grep "^ssid=" | sed 's/^ssid=//' || echo ""
+}
+
+if_status() {
+    local iface=$1
+    local state=$(cat /sys/class/net/$iface/operstate)
+    echo $state
+
+    local type='unknown'
+    case $(cat /sys/class/net/$iface/type) in
+    1)
+        type='ethernet'
+        ;;
+    772)
+        type='local'
+        ;;
+    esac
+    local wireless=$(if_wireless $iface && echo "wireless" || echo "")
+    echo $type $wireless
+
+    local ip=$(if_ip $iface)
+    test -n "$ip" && echo ip $ip
+
+    local ssid=""
+    test if_wireless && ssid=$(if_ssid $iface)
+    test -n "$ssid" && echo ssid $ssid
+    return 0
+}
+
+
+ifaces=$(ls /sys/class/net | sed 's#/##g')
+
+test $# -lt 1 && usage
+
+cmd=$1
+shift
+
+iface=""
+if [ $# -gt 0 ]; then 
+    iface=$(echo $1 | sed 's/[^a-z0-9]//g')
+    shift
+fi
+
+
+case $cmd in
+ls)
+    echo $ifaces
+    ;;
+
+s|st|sta|stat|status)
+    test -z "$iface" && usage
+    if_status $iface
+    ;;
+
+u|up)
+    test -z "$iface" && usage
+    if if_up $iface; then
+        exit 0
+    fi
+
+    if [ $# -gt 0 ]; then
+        addr=$(echo $1 | sed 's/[^0-9\.]//g')
+        shift
+        ifconfig $iface $addr
+    else
+        addr="auto"
+    fi
+
+    services=""
+    if_wireless $iface && services="wpa"
+    test $addr = "auto" && services="$services udhcpc"
+
+    for svc in $services; do
+        svtool skel $svc $iface
+    done
+    ;;
+
+d|down)
+    test -z "$iface" && usage
+    if_up $iface || exit 0
+
+    services=""
+    if_wireless $iface && services="wpa"
+
+    if if_dhcp $iface; then
+        services="$services udhcpc"
+    else
+        ifconfig $iface down
+    fi
+
+    for svc in $services; do
+        svtool down $svc-$iface
+    done
+    ;;
+
+w|wi|wifi)
+    wifi $iface $*
+    ;;
+*) 
+    usage
+    ;;
+
+esac

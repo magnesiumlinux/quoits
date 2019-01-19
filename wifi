@@ -1,0 +1,175 @@
+#!/bin/sh
+# quoits wifi
+# 
+# list APs
+# connect to APs
+# set password
+# find existing network for ssid
+# bring connections up by ssid and down
+#
+# todo:
+# dump all known networks as a quoits macro
+# be more organized about parsing wpa responses
+# status: up/down, ssid or failure message
+# psk: change the psk of the current network
+# store AP database in a temp file?
+#
+set -e
+set -u
+#set -x
+
+usage () {
+    echo "wifi IFACE (up | down)"
+    return 1
+}
+
+wpaecho () {
+    /opt/net/bin/wpa_cli -i $iface $*
+}
+
+wpa () {
+    wpaecho $* > /dev/null
+}
+
+# idx:ssid;flags:qual
+get_ssids () {
+    line='foo'
+    i=0
+    while [ "$line" != '::::' ]; do
+        line=$(wpaecho bss $i | awk '\
+  	    BEGIN {FS="="} \
+	    $1=="ssid" {ssid=$2} \
+   	    $1=="flags" {flags=$2} \
+	    $1=="qual" {qual=$2} \
+	    END {printf ":%s:%s:%s:\n", ssid, flags, qual}')
+	echo $i$line
+        let i=i+1
+    done
+}
+
+# netid:ssid:status
+get_networks () {
+    wpaecho list_net | awk -F \\t '{printf "%s:%s:%s\n", $1, $2, $4}'
+}
+
+get_ssid_network () {
+    # echo the numerical id of the network with ssid matching $1
+    local target_ssid=$1
+    local netid=""
+
+    get_networks | while read line; do
+	netid=$(echo $line | awk -F : '{print $1}')
+	ssid=$(echo $line | awk -F : '{print $2}')
+
+        if [ "$target_ssid" = "$ssid" ] ; then
+            echo $netid
+            return 0
+        fi
+    done
+}
+
+select_ssid () {
+    while [ -z $NEW_SSID ]; do
+        last=0
+        while [ $last -le 1 ]; do
+            echo "scanning..."
+            wpa scan
+            sleep 1
+            last=$(get_ssids | wc -l)
+        done   
+
+        # show results
+        echo "id:ssid:flags:qual"
+        get_ssids | grep -v '::::$'
+        
+        # prompt
+        lidx=$(($last-2)) 
+        read -p "Choose(0-$lidx, (r)escan ): " id
+        if [ $id = "r" ]; then
+            continue
+        fi
+        NEW_SSID="$(get_ssids | grep "^$id\:" | awk -F : '{print $2}')"
+    done
+}
+
+set_psk () {
+    # set the password for network id $1
+    netid=$1
+    if [ $# -ge 2 ]; then
+        pw=$2
+    else
+        read -sp "password for '$NEW_SSID': "
+        pw="$REPLY"
+    fi
+    echo
+
+    if [ -n "$pw" ]; then
+        wpa set_net $netid psk \"$pw\" > /dev/null
+    else
+        wpa set_net $netid key_mgmt NONE  > /dev/null
+    fi
+}
+
+#status () {
+   
+#}
+
+
+test $# -ge 2 || usage
+iface=$1
+
+
+optmount up net || true > /dev/null
+
+
+CURRENT_SSID="$(get_networks | awk -F : '$3 == "[CURRENT]" {print $2}')"
+NEW_SSID=""
+
+
+if [ -n "$CURRENT_SSID" ]; then
+    echo "currently connected to: '$CURRENT_SSID'"
+fi
+
+case $2 in
+d|do|down)
+    test -n "$CURRENT_SSID" && wpa disable_net "$CURRENT_SSID"
+    wpa disconnect
+    ;;
+
+u|up)
+    NEW_SSID=${3:+}
+    test -z "$NEW_SSID" && select_ssid
+    if [ "$NEW_SSID" = "$CURRENT_SSID" ]; then
+        echo "Already connected to $CURRENT_SSID"
+        exit 1
+    fi
+
+    wpa disconnect
+
+    netid=$(get_ssid_network "$NEW_SSID")
+    if [ -z $netid ]; then
+        netid=$(wpaecho add_network)
+        wpa set_net $netid ssid \"$NEW_SSID\" > /dev/null 
+    fi
+    echo "network id: '$netid'"
+
+    set_psk $netid
+    
+    wpa enable_net $netid
+    wpa reconnect
+    ;;
+
+p|psk)
+    netid=$(get_ssid_network "$CURRENT_SSID")
+    wpa disconnect
+
+    set_psk "$netid"
+    wpa reconnect
+    ;;
+
+*)
+    echo "unknown command: $2"
+    usage
+    ;;
+
+esac
