@@ -252,7 +252,11 @@ quoitscommand () {
         ;;
     w|we|wea|weather)
         test -z "$weather" && echo "! not available" && continue
-        weather $ZIPCODE || true
+        if [ $# -ge 1 ]; then
+            weather $(echo $* | sed 's/[^0-9]//g')
+        else
+            weather $ZIPCODE || true
+        fi
         ;;
     z|zi|zip)
         test $# -eq 1  && echo "ZIP code is $ZIPCODE" && continue
