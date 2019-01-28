@@ -3,7 +3,7 @@ set -e
 set -u
 
 
-QHOME=${$QHOME:-/tmp/quoits)
+QHOME=${QHOME:-/tmp/quoits}
 export KEYLOCK_RUNDIR=$QHOME/keylock
 
 mkdir -p $KEYLOCK_RUNDIR/log
