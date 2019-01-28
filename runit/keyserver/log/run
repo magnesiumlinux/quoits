@@ -1,0 +1,12 @@
+#!/bin/sh
+set -e
+set -u
+
+
+QHOME=${$QHOME:-/tmp/quoits)
+export KEYLOCK_RUNDIR=$QHOME/keylock
+
+mkdir -p $KEYLOCK_RUNDIR/log
+
+exec 2>&1
+exec svlogd $KEYLOCK_RUNDIR/log
