@@ -178,3 +178,6 @@ r|re|res|resi|resiz|resize)
     usage
     ;;
 esac
+
+cd
+rm -rf $WORKDIR
