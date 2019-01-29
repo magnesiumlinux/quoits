@@ -72,7 +72,7 @@ quoitscommand () {
         echo '  help | ?'
         echo '  intro'
         echo '  fs ( up | down ) FILESYSTEM [ mem ]'
-		echo '  keyserver ( up KEYRING | down )'
+		echo '  keyring ( up KEYRING | down | add KEY | del KEY)'
         echo '  macro ( abort | ls | stop )'
         echo '  macro ( cat | play | record ) MACRO'
 	    echo '   # .MACRO is short for `macro play MACRO` #'
@@ -116,7 +116,7 @@ quoitscommand () {
         ;;
 
     d|da|dat|date)
-	date
+	    date
         ;;
 
     echo)
@@ -130,17 +130,18 @@ quoitscommand () {
         ;;
 
     i|in|int|intr|intro)
-	if [ -f /usr/share/quoits.intro ]; then
+        if [ -f /usr/share/quoits.intro ]; then
 	        less /usr/share/quoits.intro
-	else
-		echo "! no intro file found"  
-		continue
-	fi
+        else
+            echo "! no intro file found"  
+            continue
+        fi
         ;;
-	k|ke|key|keyring)
-		shift
-		keyctrl $@ || true
-		;;		
+
+    k|ke|key|keyring)
+        shift
+        keyctrl $@ || true
+        ;;		
 
     m|ma|mac|macr|macro)
         shift
@@ -241,6 +242,7 @@ quoitscommand () {
             umount /$t 2>/dev/null || echo "$t is busy"
         done
         ;;
+
     sv|svc)
         shift
         test $# -ge 2 || svtool || true
@@ -251,7 +253,7 @@ quoitscommand () {
         *)
            echo "! service not found: $2"
         esac
-	;;
+        ;;
 
     t|tz|timezone)
         shift
