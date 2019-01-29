@@ -22,7 +22,7 @@ cd $QHOME
 KEYLOCK_RUNDIR=$QHOME/keylock
 mkdir -m 700 $KEYLOCK_RUNDIR
 
-export QHOME KEYLOCK_RUNDIR
+export QHOME
 
 VAULT=/vault/quoits
 mkdir -p $VAULT
