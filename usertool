@@ -32,10 +32,13 @@ fail() {
 }
 
 cleanup() {
-   test -n $WORKDIR && test -d $WORKDIR && cd / && rm -r $WORKDIR
+    X=${1:-1}
+    cd /
+    test -n "$WORKDIR" && test -d $WORKDIR && cd / && rm -r $WORKDIR
+    exit $X
 }
 
-trap cleanup EXIT INT QUIT
+trap cleanup INT QUIT
 
 
 # check args
@@ -45,7 +48,7 @@ fi
 
 if [ $1 = "ls" -o $1 = "list" ]; then
     ls $HOMEROOT
-    exit 0
+    cleanup 0
 elif [ $# -lt 2 ]; then
     usage
 fi
@@ -64,10 +67,11 @@ cd $WORKDIR
 
 case $cmd in
 st|sta|stat)
-    grep -q "^$user:" /etc/passwd || return 1
-    test -d $home || return 1
-    test "$(stat -c '%U' $home)" == "$user" || return 1
+    grep -q "^$user:" /etc/passwd || cleanup 1
+    test -d $home || cleanup 1
+    test "$(stat -c '%U' $home)" == "$user" || cleanup 1
     echo $user
+    cleanup 0
     ;;
 
 u|up)
@@ -179,5 +183,4 @@ r|re|res|resi|resiz|resize)
     ;;
 esac
 
-cd
-rm -rf $WORKDIR
+cleanup 0
