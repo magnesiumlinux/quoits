@@ -62,7 +62,7 @@ home=$HOMEROOT/$user
 test -n "$HOMEROOT" && test -n "$user" || fail "Invalid directory: $HOMEROOT/$user"
 shift
 
-WORKDIR=$(mktemp -d usertool.XXXXXX)
+WORKDIR=$(pwd)/$(mktemp -d usertool.XXXXXX)
 cd $WORKDIR
 
 case $cmd in
