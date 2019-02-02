@@ -5,7 +5,7 @@ ifndef DESTDIR
     DESTDIR = ''
 endif
 
-tools="keyctrl mounty netutil nextuser optmount pod quoits.sh svtool tz usertool wifi"
+tools="mounty netutil nextuser optmount pod quoits.sh svtool tz usertool wifi"
 
 all:
 	echo "Nothing to do!"
