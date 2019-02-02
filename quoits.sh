@@ -3,7 +3,7 @@ set -e
 set -u
 #set -x
 
-umask 0077
+umask 0022
 
 
 # find the full path of our executable self

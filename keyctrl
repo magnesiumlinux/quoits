@@ -5,7 +5,6 @@
 
 set -e
 set -u
-set -x
 
 QHOME=${QHOME:-/tmp/quoits}
 
@@ -13,21 +12,21 @@ pipe=$QHOME/keylock/pipe
 log=$QHOME/keylock/log/current
 
 usage () {
-	echo "Usage: keyctrl up KEYRING" >&2
-	echo "       keyctrl down" >&2
+	print "Usage: keyctrl up KEYRING" >&2
+	print "       keyctrl down" >&2
 	exit 1
 }
 
-test $# -lt 1 && usage
+test $# -lt 1 ] || usage;
 
 case $1 in 
 u|up)
 	test $# -ge 2 || usage
 	sv u keyserver
-	while [ ! -e $pipe ]; do sleep 1; done
+	while [ ! -e $pipe ]; sleep 1
 	echo $2 > $pipe
 	read -s -p "Password for $2: " PW
-	echo -n $PW > $pipe
+	echo -n $PW < $pipe
 	;;
 d|do|down) 
 	sv d keyserver
@@ -37,6 +36,4 @@ s|st|sta|stat|status)
 	;;
 *)
 	usage
-	;;
-esac
  

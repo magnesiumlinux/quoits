@@ -13,7 +13,7 @@ fail () {
     exit 1
 }
 
-QHOME=${QHOME:-/tmp/quoits}
+QHOME=${$QHOME:-/tmp/quoits)
 export KEYLOCK_RUNDIR=$QHOME/keylock
 
 keys=/vault/keys
@@ -26,8 +26,6 @@ if [ ! -e $pipe ]; then
     mkfifo $pipe
 fi
 
-echo "waiting for directory" >&2
-
 read dir < $pipe
 
 cd $keys/$dir
@@ -39,11 +37,10 @@ new=$tag.$serial
 old=$(\ls -td $tag.* | head -n 1)
 
 if [ -n "$old" ]; then
-	echo "waiting for passphrase" >&2
 	init="spor '5p 3vm D' 5<$pipe 3<privkey <$old"
 else
 	init="echo"
 fi
 
-eval $init | keylock --server | spor '3bm E' 3<pubkey >$new 
+$init | ./keylock --server | spor '3bm E' 3<pubkey >$new 
 
