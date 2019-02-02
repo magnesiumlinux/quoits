@@ -3,7 +3,7 @@ set -e
 set -u
 #set -x
 
-umask 0022
+umask 0077
 
 
 # find the full path of our executable self
@@ -16,13 +16,12 @@ fi
 VERSION=$(stat -c '%z' $EXEC | cut -d. -f1 )
 
 QHOME=${QHOME:-/tmp/quoits}
-mkdir -m 700 $QHOME
+mkdir $QHOME
 cd $QHOME
 
 KEYLOCK_RUNDIR=$QHOME/keylock
-mkdir -m 700 $KEYLOCK_RUNDIR
-
-export QHOME KEYLOCK_RUNDIR
+mkdir $KEYLOCK_RUNDIR
+export KEYLOCK_RUNDIR
 
 VAULT=/vault/quoits
 mkdir -p $VAULT
@@ -30,14 +29,6 @@ mkdir -p $VAULT/macros
 
 bigboard=$(which bigboard) || true
 weather=$(which weather) || true
-
-
-cleanup () {
-    cd /
-    rm -rf $QHOME
-    exit 0
-}
-trap cleanup EXIT INT QUIT
 
 macro=""
 
@@ -219,7 +210,9 @@ quoitscommand () {
         ;;
 
     q|qu|qui|quo|quit|quoi|quoit|quoits)
-        cleanup
+        cd /
+        rm -rf $QHOME
+        exit 0
         ;;
 
     r|re|reb|reboot)
