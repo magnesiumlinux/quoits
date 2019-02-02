@@ -15,17 +15,14 @@ fi
 
 VERSION=$(stat -c '%z' $EXEC | cut -d. -f1 )
 
-QHOME=${QHOME:-/tmp/quoits}
-mkdir $QHOME
-cd $QHOME
-
-KEYLOCK_RUNDIR=$QHOME/keylock
-mkdir $KEYLOCK_RUNDIR
-export KEYLOCK_RUNDIR
+QHOME=$(mktemp -d /tmp/quoits.XXXXXX)
+cd ${QHOME}
 
 VAULT=/vault/quoits
 mkdir -p $VAULT
 mkdir -p $VAULT/macros
+
+ZIPCODE=07066 
 
 bigboard=$(which bigboard) || true
 weather=$(which weather) || true
@@ -63,7 +60,6 @@ quoitscommand () {
         echo '  help | ?'
         echo '  intro'
         echo '  fs ( up | down ) FILESYSTEM [ mem ]'
-		echo '  keyserver ( up KEYRING | down )'
         echo '  macro ( abort | ls | stop )'
         echo '  macro ( cat | play | record ) MACRO'
 	    echo '   # .MACRO is short for `macro play MACRO` #'
@@ -128,10 +124,6 @@ quoitscommand () {
 		continue
 	fi
         ;;
-	k|ke|key|keyring)
-		shift
-		keyctrl $@ || true
-		;;		
 
     m|ma|mac|macr|macro)
         shift
