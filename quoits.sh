@@ -18,6 +18,8 @@ VERSION=$(stat -c '%z' $EXEC | cut -d. -f1 )
 QHOME=$(mktemp -d /tmp/quoits.XXXXXX)
 cd ${QHOME}
 
+KEYSERVER_PID=""
+
 VAULT=/vault/quoits
 mkdir -p $VAULT
 mkdir -p $VAULT/macros
@@ -121,6 +123,23 @@ quoitscommand () {
             echo "! no intro file found"  
             continue
         fi
+        ;;
+
+    k|ke|key|keys|keyserver)
+        shift
+        case $1 in
+        u|up)
+            KEYSERVER_PID=$(keyserver $2 2>/dev/null || true)
+            ;;
+        d|do|dow|down)
+            test -n "$KEYSERVER_PID" && kill $KEYSERVER_PID
+            KEYSERVER_PID=""
+            ;;
+        *)
+            echo "! keyserver up NAME"
+            echo "! keyserver down"
+            ;;
+        esac
         ;;
 
     m|ma|mac|macr|macro)
