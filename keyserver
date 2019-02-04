@@ -1,0 +1,83 @@
+#!/bin/sh
+# keyserver
+# start the keylock server,
+# reading from storage $1 on startup
+# and writing to storage on close
+# (with SIGTERM) or on SIGUSR1
+# 
+set -e
+set -u
+#set -x
+
+SPOR_OVERHEAD=240  # in bytes
+
+umask 0077
+
+pid=""
+new=""
+fail () {
+    test -n "$pid" && kill -KILL $pid
+    test -n "$new" && test -e "$new" && rm "$new"
+    echo $@ >&2
+}
+trap fail INT QUIT
+
+QHOME=${QHOME:-/tmp/quoits}
+export KEYLOCK_RUNDIR=$QHOME/keylock
+
+keys=/vault/keys
+tag="storage"
+serial=$(date +'%s')
+cleanup=true
+
+
+if [ $# -ne 1 ]; then
+    fail "Usage: keyserver DIR"
+fi
+
+dir=$1
+if [ ! -d $keys/$dir ]; then
+    fail "$dir not found"
+fi
+
+cd $keys/$dir
+
+if [ ! -e ./privkey ] || [ ! -e ./pubkey ]; then
+    fail "No keys found for $dir"
+fi
+
+if [ ! -e ./inpipe ]; then
+    mkfifo ./inpipe
+fi
+
+if [ ! -e ./outpipe ]; then
+    mkfifo ./outpipe
+fi
+
+
+for empty in $(find . -name $tag.'*' -size -${SPOR_OVERHEAD}c); do
+    rm $empty
+done
+
+new=$tag.$serial
+old=$(\ls -td $tag.* | head -n 1)
+
+for stale in $(find . ! -name $old -a -name $tag.'*'); do
+    rm $stale
+done
+
+
+keylock --server <inpipe >outpipe &
+pid=$!
+
+if [ -n "$old" ]; then
+	spor 'P 3vm D' 3<privkey <$old >inpipe || fail "decryption failed"
+else
+    echo '' > inpipe
+fi
+
+spor '3bm E' <outpipe 3<pubkey >$new &
+echo $pid
+
+
+
