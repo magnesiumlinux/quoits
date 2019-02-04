@@ -22,8 +22,6 @@ VAULT=/vault/quoits
 mkdir -p $VAULT
 mkdir -p $VAULT/macros
 
-ZIPCODE=07066 
-
 bigboard=$(which bigboard) || true
 weather=$(which weather) || true
 
@@ -117,12 +115,12 @@ quoitscommand () {
         ;;
 
     i|in|int|intr|intro)
-	if [ -f /usr/share/quoits.intro ]; then
+        if [ -f /usr/share/quoits.intro ]; then
 	        less /usr/share/quoits.intro
-	else
-		echo "! no intro file found"  
-		continue
-	fi
+        else
+            echo "! no intro file found"  
+            continue
+        fi
         ;;
 
     m|ma|mac|macr|macro)
@@ -234,9 +232,9 @@ quoitscommand () {
             svtool $* || true
             ;;
         *)
-           echo "! service not found: $2"
+            echo "! service not found: $2"
         esac
-	;;
+        ;;
 
     t|tz|timezone)
         shift
